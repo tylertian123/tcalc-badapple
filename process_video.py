@@ -46,6 +46,7 @@ def resize_frame_borders(img: npt.ArrayLike) -> npt.ArrayLike:
     scale = min(128 / width, 64 / height)
     img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
     height, width = img.shape[:2]
+    print(img.shape)
     if width < 128:
         border_width = (128 - width) // 2
         return cv2.copyMakeBorder(img, 0, 0, border_width, 128 - width - border_width, cv2.BORDER_CONSTANT)
@@ -58,16 +59,8 @@ def convert_frame(img: npt.ArrayLike) -> npt.ArrayLike:
     return mono
 
 
-def convert_frame2(img: npt.ArrayLike) -> npt.ArrayLike:
-    img = resize_frame_crop(img)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, mono = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
-    return mono
-
-
 for frame in get_frames("vidsrc.mp4", 2):
-    cv2.imshow("borders", cv2.resize(convert_frame(frame), None, fx=4, fy=4, interpolation=cv2.INTER_NEAREST))
-    cv2.imshow("crop", cv2.resize(convert_frame2(frame), None, fx=4, fy=4, interpolation=cv2.INTER_NEAREST))
+    cv2.imshow("converted frame", cv2.resize(convert_frame(frame), None, fx=4, fy=4, interpolation=cv2.INTER_NEAREST))
     if cv2.waitKey(0) & 0xFF == ord('q'):
         cv2.destroyAllWindows()
         break
