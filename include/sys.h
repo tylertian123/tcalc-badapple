@@ -9,7 +9,6 @@
 #define SYSCLK_Source_PLL 0x08
 
 namespace sys {
-    void initRCC();
-    void initNVIC();
+    void init_NVIC();
 }
 

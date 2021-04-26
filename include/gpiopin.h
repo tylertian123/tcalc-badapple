@@ -25,7 +25,7 @@ public:
 	
 	operator bool() const;
 		
-	uint32_t getRCCPeriph() const;
+	uint32_t get_RCC_perhiph() const;
 	
 	void init(GPIOMode_TypeDef, GPIOSpeed_TypeDef);
 	void init(const GPIOConfig&);

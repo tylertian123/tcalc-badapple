@@ -23,7 +23,7 @@ GPIOPin::operator bool() const {
     return get();
 }
 
-uint32_t GPIOPin::getRCCPeriph() const {
+uint32_t GPIOPin::get_RCC_perhiph() const {
     if (port == GPIOA) {
         return RCC_APB2Periph_GPIOA;
     }
@@ -48,7 +48,7 @@ uint32_t GPIOPin::getRCCPeriph() const {
 }
 
 void GPIOPin::init(GPIOMode_TypeDef mode, GPIOSpeed_TypeDef speed) {
-    RCC_APB2PeriphClockCmd(getRCCPeriph(), ENABLE);
+    RCC_APB2PeriphClockCmd(get_RCC_perhiph(), ENABLE);
     GPIO_InitTypeDef initStruct;
     initStruct.GPIO_Mode = mode;
     initStruct.GPIO_Speed = speed;
