@@ -1,4 +1,5 @@
 *.mp4
 
+.pio/
 .vscode/
 __pycache__/
