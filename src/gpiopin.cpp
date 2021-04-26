@@ -1,5 +1,11 @@
 #include "gpiopin.h"
 
+GPIOPin::GPIOPin() : port(0), pin(0) {
+}
+
+GPIOPin::GPIOPin(GPIO_TypeDef *port, uint16_t pin) : port(port), pin(pin) {
+}
+
 void GPIOPin::set(const bool &val) {
     GPIO_WriteBit(port, pin, static_cast<BitAction>(val));
 }
