@@ -78,7 +78,6 @@ namespace lcd {
 
         void clear_drawing();
         void update_drawing();
-        void clearDrawingBuffer();
 
         // The image that will be displayed after the next update
         // First index is row and second is column

@@ -33,8 +33,8 @@ namespace lcd {
         virtual void write_cmd(uint8_t);
         virtual void write_data(uint8_t);
         virtual uint8_t read_data();
-        virtual void write_str(const char *);
-        virtual void printf(const char *, ...);
+        void write_str(const char *);
+        void printf(const char *, ...);
 
     protected:
         GPIOPin RS, RW, E;

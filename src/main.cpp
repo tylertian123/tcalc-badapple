@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "stm32f10x.h"
 #include "sys.h"
 #include "delay.h"
@@ -9,16 +10,32 @@ GPIOPin RS(GPIOC, GPIO_Pin_10), RW(GPIOC, GPIO_Pin_11), E(GPIOC, GPIO_Pin_12), D
         D2(GPIOB, GPIO_Pin_14), D1(GPIOB, GPIO_Pin_13), D0(GPIOB, GPIO_Pin_12);
 lcd::LCD12864 display(RS, RW, E, D0, D1, D2, D3, D4, D5, D6, D7);
 
+extern "C" const uint8_t viddata[];
+extern "C" const uint32_t viddata_size;
+
 int main() {
     sys::init_NVIC();
 
     display.init();
     display.start_draw();
     display.clear_drawing();
-
-    display.draw_buf[0][0] = 0b11110000'10101010;
-    display.draw_buf[0][1] = 0b11111111'11111111;
-
+    for (uint8_t row = 0; row < 64; row ++) {
+        for (uint8_t col = 0; col < 128 / 8; col ++) {
+            uint8_t lcd_row = row;
+            uint8_t lcd_col = col;
+            if (row >= 32) {
+                lcd_row -= 32;
+                lcd_col += 128 / 8;
+            }
+            lcd_col /= 2;
+            if (col % 2 == 0) {
+                display.draw_buf[lcd_row][lcd_col] = viddata[row * (128 / 8) + col] << 8;
+            }
+            else {
+                display.draw_buf[lcd_row][lcd_col] |= viddata[row * (128 / 8) + col];
+            }
+        }
+    }
     display.update_drawing();
     
     while (true) {}

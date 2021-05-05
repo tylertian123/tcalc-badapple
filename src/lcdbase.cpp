@@ -217,12 +217,15 @@ namespace lcd {
             out = read_data_port();
             E = false;
         }
+        return out;
     }
     void LCDBase::write_str(const char *str) {
         for(uint16_t i = 0; str[i] != '\0'; i ++) {
             write_data(str[i]);
         }
     }
+
+    // TODO: Remove for production
     void LCDBase::printf(const char *fmt, ...) {
         // Buffer used to store formatted string
         char buf[LCD_PRINTF_BUFFER_SIZE] = { 0 };
