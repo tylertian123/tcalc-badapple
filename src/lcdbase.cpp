@@ -7,8 +7,8 @@
 
 namespace lcd {
     
-    const GPIOConfig LCDBase::READ_CONFIG = { GPIO_Mode_IPU, GPIO_Speed_2MHz };
-    const GPIOConfig LCDBase::WRITE_CONFIG = { GPIO_Mode_Out_PP, GPIO_Speed_2MHz };
+    const GPIOConfig LCDBase::READ_CONFIG = { GPIO_Mode_IPU, GPIO_Speed_50MHz };
+    const GPIOConfig LCDBase::WRITE_CONFIG = { GPIO_Mode_Out_PP, GPIO_Speed_50MHz };
     
     #define LCD_EDELAY() delay::cycles(LCD_ENABLE_DELAY)
     #define INIT_I(x) x.init(GPIO_Mode_IPU, GPIO_Speed_10MHz)

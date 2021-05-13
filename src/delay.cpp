@@ -1,5 +1,6 @@
 
 #include "delay.h"
+#include "util.h"
 
 #define SYSCLK_FREQUENCY 72 // MHz
 
@@ -10,8 +11,7 @@ namespace delay {
     }
     
     void us(uint16_t microSeconds) {
-        uint32_t __no_interrupt_PRIMASK = __get_PRIMASK();
-        __disable_irq();
+        NoInterrupt noi;
 
         // Set SysTick reload value
         SysTick->LOAD = microSeconds * SYSCLK_FREQUENCY;
@@ -23,9 +23,6 @@ namespace delay {
         while(!(SysTick->CTRL & 0x00010000)); // 0000 0000 0000 0001 0000 0000 0000 0000
         // Stop SysTick
         SysTick->CTRL = 0x00000004; // 0000 0000 0000 0000 0000 0000 0000 0100
-        
-        if(!__no_interrupt_PRIMASK)
-            __enable_irq();
     }
     void ms(uint16_t ms) {
         while(ms --) us((uint16_t) 1000);
