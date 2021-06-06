@@ -10,11 +10,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
-constexpr unsigned int SCREEN_WIDTH = 128;
-constexpr unsigned int SCREEN_HEIGHT = 64;
-
-constexpr unsigned int FRAMERATE = 10;
-constexpr unsigned int FRAME_INTERVAL = 1000 / FRAMERATE;
+#include "common.h"
 
 // Util class for writing individual bits
 class BitStream {
@@ -57,6 +53,8 @@ private:
         if (repeat < 1) {
             return;
         }
+
+		//std::cout << "encoding " << repeat << "\n";
         // A repeat of zero is not possible, so everything is offset by 1
         repeat --;
         // Calculate the number of bits needed
@@ -86,6 +84,7 @@ public:
 
     ~RunLengthEncoder() {
         flush();
+		//std::cout << "rle over\n";
     }
 
     void encode(bool bit) {
@@ -129,9 +128,6 @@ void process_frame(cv::Mat &in, cv::Mat &out) {
     cv::threshold(temp, out, 127, 255, cv::THRESH_BINARY_INV);
 }
 
-constexpr unsigned int CHUNK_COUNT_X = 8;
-constexpr unsigned int CHUNK_COUNT_Y = 8;
-
 /*
  * Compress & encode the video and write to the stream.
  *
@@ -159,14 +155,21 @@ void encode_video(cv::VideoCapture &cap, std::ostream &out, int frame_limit = st
     const unsigned int CHUNK_WIDTH = (fwidth - 1) / CHUNK_COUNT_X + 1;
     const unsigned int CHUNK_HEIGHT = (fheight - 1) / CHUNK_COUNT_Y + 1;
 
+#define CHUNK_FOR(cx, cy) (cx * CHUNK_COUNT_Y + cy)
+
     BitStream out_bits(out);
     // Run-length encode first frame
     {
         RunLengthEncoder encoder(out_bits);
-        for (auto it = processed.begin<uint8_t>(); it != processed.end<uint8_t>(); ++it) {
-            encoder << static_cast<bool>(*it);
-        }
+        for (unsigned int x = 0; x < fwidth; x ++) {
+            for (unsigned int y = 0; y < fheight; y ++) {
+				encoder << static_cast<bool>(processed.at<uint8_t>(y, x));
+			}
+		}
     }
+
+	// Keep track of how long we've "delayed" frame changes by
+	size_t accumulated_chunk_error[CHUNK_COUNT]{};
 
     // Keep track of previous frame to do frame diffs
     previous = processed;
@@ -189,52 +192,62 @@ void encode_video(cv::VideoCapture &cap, std::ostream &out, int frame_limit = st
         process_frame(frame, processed);
 
         // Find the chunks that changed
-        uint32_t mask = 1;
-        uint32_t changed_chunks = 0;
+        uint64_t mask = 1;
+        uint64_t changed_chunks = 0;
         for (unsigned int cx = 0; cx < CHUNK_COUNT_X; cx ++) {
             for (unsigned int cy = 0; cy < CHUNK_COUNT_Y; cy ++) {
-                for (unsigned int x = cx * CHUNK_WIDTH; x < std::min((cx + 1) * CHUNK_WIDTH, fwidth); x ++) {
-                    for (unsigned int y = cy * CHUNK_HEIGHT; y < std::min((cy + 1) * CHUNK_HEIGHT, fheight); y ++) {
+				unsigned int cxend = std::min((cx + 1) * CHUNK_WIDTH, fwidth);
+				unsigned int cyend = std::min((cy + 1) * CHUNK_HEIGHT, fheight);
+                for (unsigned int x = cx * CHUNK_WIDTH; x < cxend; x ++) {
+                    for (unsigned int y = cy * CHUNK_HEIGHT; y < cyend; y ++) {
                         if (static_cast<bool>(processed.at<uint8_t>(y, x)) != static_cast<bool>(previous.at<uint8_t>(y, x))) {
-                            changed_chunks |= mask;
-                            goto next_chunk;
+							++accumulated_chunk_error[CHUNK_FOR(cx, cy)];
                         }
                     }
                 }
-next_chunk:
+				if (accumulated_chunk_error[CHUNK_FOR(cx, cy)] > (CHUNK_WIDTH * CHUNK_HEIGHT * FRAME_DIFF_PCT) / 100) {
+					accumulated_chunk_error[CHUNK_FOR(cx, cy)] = 0;
+					changed_chunks |= mask;
+					// update previous
+					cv::Rect roi{cv::Point(cx * CHUNK_WIDTH, cy * CHUNK_HEIGHT), cv::Point(cxend, cyend)};
+					processed(roi).copyTo(previous(roi));
+				}
                 mask <<= 1;
             }
         }
+		//std::cout << "using mask " << changed_chunks << std::endl;
 
         // Write frame header
-        uint32_t header = changed_chunks;
-        for (unsigned int i = 0; i < CHUNK_COUNT_X * CHUNK_COUNT_Y; i ++) {
-            out_bits << (header & 1);
-            header >>= 1;
+        for (unsigned int i = 0; i < CHUNK_COUNT; i ++) {
+            out_bits << ((changed_chunks & (1ull << (
+				CHUNK_COUNT - i - 1
+			))) != 0);
         }
 
-        // Encode the frame, skipping unchanged chunks
-        RunLengthEncoder encoder(out_bits);
-        for (unsigned int x = 0; x < fheight; x ++) {
-            for (unsigned int y = 0; y < fheight; y ++) {
-                // Entered new chunk
-                if (y % CHUNK_HEIGHT == 0) {
-                    unsigned int cx = std::min(x / CHUNK_WIDTH, CHUNK_COUNT_X - 1);
-                    unsigned int cy = std::min(y / CHUNK_HEIGHT, CHUNK_COUNT_Y - 1);
-                    // Check that the chunk is changed
-                    if (!(changed_chunks & (1 << (cx * CHUNK_COUNT_Y + cy)))) {
-                        // Skip chunk if unchanged
-                        // Offset 1 for the loop
-                        y += CHUNK_HEIGHT - 1;
-                        continue;
-                    }
-                }
-                encoder << static_cast<bool>(processed.at<uint8_t>(y, x));
-            }
-        }
-
-        previous = processed;
+		// If unchanged, don't encode frame
+		if (changed_chunks) {
+			// Encode the frame, skipping unchanged chunks
+			RunLengthEncoder encoder(out_bits);
+			for (unsigned int x = 0; x < fwidth; x ++) {
+				for (unsigned int y = 0; y < fheight; y ++) {
+					// Entered new chunk
+					if (y % CHUNK_HEIGHT == 0) {
+						unsigned int cx = std::min(x / CHUNK_WIDTH, CHUNK_COUNT_X - 1);
+						unsigned int cy = std::min(y / CHUNK_HEIGHT, CHUNK_COUNT_Y - 1);
+						// Check that the chunk is changed
+						if (!(changed_chunks & (1ull << (CHUNK_FOR(cx, cy))))) {
+							// Skip chunk if unchanged
+							// Offset 1 for the loop
+							y += CHUNK_HEIGHT - 1;
+							continue;
+						}
+					}
+					encoder << static_cast<bool>(processed.at<uint8_t>(y, x));
+				}
+			}
+		}
     }
+#undef CHUNK_FOR
 }
 
 int main(int argc, char **argv) {
