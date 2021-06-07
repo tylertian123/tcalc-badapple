@@ -170,14 +170,16 @@ void encode_video(cv::VideoCapture &cap, std::ostream &out, int frame_limit = st
 
 	// Keep track of how long we've "delayed" frame changes by
 	size_t accumulated_chunk_error[CHUNK_COUNT]{};
+	size_t total_frames_err = 0;
 
     // Keep track of previous frame to do frame diffs
     previous = processed;
-    for (unsigned int count = 1; ; count ++) {
+	size_t count;
+    for (count = 1; ; count ++) {
         // Hard stop for debugging purposes
         if (count > frame_limit) {
             std::cout << "Frame limit reached.\n";
-            return;
+			goto calculate_stats;
         }
 
         if (count % 50 == 0) {
@@ -187,24 +189,31 @@ void encode_video(cv::VideoCapture &cap, std::ostream &out, int frame_limit = st
         cap.set(cv::CAP_PROP_POS_MSEC, count * FRAME_INTERVAL);
         if (!cap.read(frame)) {
             std::cout << "All frames read.\n";
-            return;
+			goto calculate_stats;
         }
         process_frame(frame, processed);
 
         // Find the chunks that changed
         uint64_t mask = 1;
         uint64_t changed_chunks = 0;
+		size_t   overall_frame_err = 0; // for stats
         for (unsigned int cx = 0; cx < CHUNK_COUNT_X; cx ++) {
             for (unsigned int cy = 0; cy < CHUNK_COUNT_Y; cy ++) {
 				unsigned int cxend = std::min((cx + 1) * CHUNK_WIDTH, fwidth);
 				unsigned int cyend = std::min((cy + 1) * CHUNK_HEIGHT, fheight);
+				bool allsame = true, check = static_cast<bool>(processed.at<uint8_t>(cy * CHUNK_HEIGHT, cx * CHUNK_WIDTH));
+				size_t chunk_error = 0;
                 for (unsigned int x = cx * CHUNK_WIDTH; x < cxend; x ++) {
                     for (unsigned int y = cy * CHUNK_HEIGHT; y < cyend; y ++) {
-                        if (static_cast<bool>(processed.at<uint8_t>(y, x)) != static_cast<bool>(previous.at<uint8_t>(y, x))) {
-							++accumulated_chunk_error[CHUNK_FOR(cx, cy)];
+						bool cur = static_cast<bool>(processed.at<uint8_t>(y, x));
+                        if (cur != static_cast<bool>(previous.at<uint8_t>(y, x))) {
+							++chunk_error;
                         }
+						if (cur != check) allsame = false;
                     }
                 }
+				accumulated_chunk_error[CHUNK_FOR(cx, cy)] += chunk_error;
+				if (allsame && accumulated_chunk_error[CHUNK_FOR(cx, cy)]) accumulated_chunk_error[CHUNK_FOR(cx, cy)] += FRAME_CONST_FACTOR;
 				if (accumulated_chunk_error[CHUNK_FOR(cx, cy)] > (CHUNK_WIDTH * CHUNK_HEIGHT * FRAME_DIFF_PCT) / 100) {
 					accumulated_chunk_error[CHUNK_FOR(cx, cy)] = 0;
 					changed_chunks |= mask;
@@ -212,9 +221,14 @@ void encode_video(cv::VideoCapture &cap, std::ostream &out, int frame_limit = st
 					cv::Rect roi{cv::Point(cx * CHUNK_WIDTH, cy * CHUNK_HEIGHT), cv::Point(cxend, cyend)};
 					processed(roi).copyTo(previous(roi));
 				}
+				else {
+					overall_frame_err += chunk_error;
+				}
                 mask <<= 1;
             }
         }
+
+		total_frames_err += overall_frame_err;
 		//std::cout << "using mask " << changed_chunks << std::endl;
 
         // Write frame header
@@ -248,6 +262,16 @@ void encode_video(cv::VideoCapture &cap, std::ostream &out, int frame_limit = st
 		}
     }
 #undef CHUNK_FOR
+
+calculate_stats:
+	// Calculate stats:
+	
+	std::cout << "total frame error (pixels): " << total_frames_err << "\n";
+	double avg_frame_err = (double)total_frames_err / count;
+	std::cout << "average frame error (pixels): " << avg_frame_err << "\n";
+	avg_frame_err *= 100;
+	avg_frame_err /= (fwidth * fheight);
+	std::cout << "average frame error (pct): " << avg_frame_err << "\n";
 }
 
 int main(int argc, char **argv) {

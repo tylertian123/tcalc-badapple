@@ -8,6 +8,8 @@
 
 #include "common.h"
 
+#define SHOW_UNCHANGED_REGIONS
+
 struct bit_reader {
 	bit_reader(std::istream& from) : from(from) {
 		val = from.get();
@@ -82,14 +84,14 @@ int main(int argc, char ** argv) {
 		bool current = br();
 		size_t repeat = read_count(br);
 
-		//frame = 0x88; // show unchanged regions in gray
+#ifdef SHOW_UNCHANGED_REGIONS
 		for (unsigned int x = 0; x < width; ++x) {
 			for (unsigned int y = 0; y < height; ++y) {
 				if (frame.at<uint8_t>(y, x) == 0x00) frame.at<uint8_t>(y, x) = 0x28;
 				else if (frame.at<uint8_t>(y, x) == 0xff) frame.at<uint8_t>(y, x) = 0xc8;
-
 			}
 		}
+#endif
 
 		for (unsigned int x = 0; x < width; ++x) {
 			for (unsigned int y = 0; y < height; ++y) {
