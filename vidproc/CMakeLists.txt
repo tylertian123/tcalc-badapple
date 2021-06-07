@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(TCalc-BadApple)
 set(CMAKE_CXX_STANDARD 17)
-find_package(OpenCV 3.2 REQUIRED COMPONENTS core highgui imgproc videoio)
+find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc videoio)
 
 set(OPENCV_LIBS opencv_core opencv_highgui opencv_imgproc opencv_videoio)
 
