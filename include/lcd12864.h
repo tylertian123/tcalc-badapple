@@ -80,17 +80,15 @@ namespace lcd {
         void update_drawing();
 
         // The image that will be displayed after the next update
-        // First index is row and second is column
-        // Actual buffer size is 256x32, with columns 128-256 corresponding to the bottom 32 rows of the display
-        uint16_t draw_buf[32][16] = {0};
+        uint8_t draw_buf[64][16] = {0};
 
     protected:
         bool extended = false;
         bool drawing = false;
 
         // Stores what's currently being displayed
-        // When updating, this is compared with drawBuf so no unnecessary writes are made
-        uint16_t display_buf[32][16] = {0};
+        // When updating, this is compared with draw_buf so no unnecessary writes are made
+        uint8_t display_buf[64][16] = {0};
     };
 } // namespace lcd
 

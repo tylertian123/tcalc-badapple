@@ -45,8 +45,8 @@ public:
 
     VideoDecoder();
 
-    bool read_frame(uint16_t frame[32][16], uint64_t header);
+    bool read_frame(uint8_t frame[64][16], uint64_t header);
     // Read a frame and update the frame buffer
     // Returns false if there is no more data
-    bool read_frame(uint16_t frame[32][16]);
+    bool read_frame(uint8_t frame[64][16]);
 };

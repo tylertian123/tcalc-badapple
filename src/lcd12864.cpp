@@ -125,11 +125,16 @@ namespace lcd {
         for (uint8_t row = 0; row < 32; row ++) {
             bool run = false;
             for (uint8_t col = 0; col < 16; col ++) {
-                uint16_t data = draw_buf[row][col];
-                // Compare drawBuf with dispBuf
-                if (display_buf[row][col] != data) {
+                // Convert coordinates
+                uint8_t buf_row = col >= 8 ? row + 32 : row;
+                uint8_t buf_col = (col >= 8 ? col - 8 : col) * 2;
+
+                // Compare display and draw buffers
+                if (display_buf[buf_row][buf_col] != draw_buf[buf_row][buf_col]
+                        || display_buf[buf_row][buf_col + 1] != draw_buf[buf_row][buf_col + 1]) {
                     // Update the display buffer
-                    display_buf[row][col] = data;
+                    display_buf[buf_row][buf_col] = draw_buf[buf_row][buf_col];
+                    display_buf[buf_row][buf_col + 1] = draw_buf[buf_row][buf_col + 1];
                     NoInterrupt noi;
                     if (!run) {
                         run = true;
@@ -137,8 +142,8 @@ namespace lcd {
                         write_cmd(0x80 | col);
                     }
                     // Write higher order byte first
-                    write_data(display_buf[row][col] >> 8);
-                    write_data(display_buf[row][col] & 0x00FF);
+                    write_data(display_buf[buf_row][buf_col]);
+                    write_data(display_buf[buf_row][buf_col + 1]);
                 }
                 else {
                     run = false;

@@ -44,7 +44,7 @@ uint16_t VideoDecoder::read_repeat_count() {
     return repeat + OFFSETS[groups - 1] + 1;
 }
 
-bool VideoDecoder::read_frame(uint16_t frame[32][16]) {
+bool VideoDecoder::read_frame(uint8_t frame[64][16]) {
     // Read the entire thing for the first frame
     if (first_frame) {
         first_frame = false;
@@ -60,7 +60,19 @@ bool VideoDecoder::read_frame(uint16_t frame[32][16]) {
     }
 }
 
-bool VideoDecoder::read_frame(uint16_t frame[32][16], uint64_t header) {
+void set_pixel(uint8_t frame[64][16], uint8_t x, uint8_t y, bool val) {
+    uint8_t lcd_row = y;
+    uint8_t lcd_col = x / 8;
+    uint8_t lcd_col_offset = 7 - x % 8;
+    if (val) {
+        frame[lcd_row][lcd_col] |= 1 << lcd_col_offset;
+    }
+    else {
+        frame[lcd_row][lcd_col] &= ~(1 << lcd_col_offset);
+    }
+}
+
+bool VideoDecoder::read_frame(uint8_t frame[64][16], uint64_t header) {
     // Return if no chunks changed
     if (!header) {
         return true;
@@ -90,19 +102,41 @@ bool VideoDecoder::read_frame(uint16_t frame[32][16], uint64_t header) {
             repeat --;
 
             // Update LCD pixel
-            uint8_t lcd_row = y + FRAME_OFFSET_Y;
-            uint8_t lcd_col = (x + FRAME_OFFSET_X) / 16;
-            uint8_t lcd_col_offset = 15 - (x + FRAME_OFFSET_X) % 16;
-            // Bottom 32 rows
-            if (lcd_row >= 32) {
-                lcd_row -= 32;
-                lcd_col += 128 / 16;
+            set_pixel(frame, x + FRAME_OFFSET_X, y + FRAME_OFFSET_Y, current);
+        }
+    }
+    // Find border colours
+    uint8_t l0 = 0, l1 = 0, r0 = 0, r1 = 0;
+    for (uint8_t y = 0; y < FRAME_HEIGHT; y ++) {
+        (frame[y + FRAME_OFFSET_Y][FRAME_OFFSET_X / 8] & 1 << (7 - FRAME_OFFSET_X % 8) ? l1 : l0) ++;
+        (frame[y + FRAME_OFFSET_Y][(FRAME_OFFSET_X + FRAME_WIDTH - 1) / 8] & 1 << (7 - (FRAME_OFFSET_X + FRAME_WIDTH - 1) % 8) ? r1 : r0) ++;
+    }
+    const uint8_t RIGHT_OFFSET = 128 - FRAME_OFFSET_X - FRAME_WIDTH;
+    if (std::abs(l1 - l0) >= 10) {
+        for (uint8_t row = 0; row < 64; row ++) {
+            for (uint8_t col = 0; col < FRAME_OFFSET_X / 8; col ++) {
+                frame[row][col] = l1 > l0 ? 0xFF : 0x00;
             }
-            if (current) {
-                frame[lcd_row][lcd_col] |= 1 << lcd_col_offset;
+            const uint8_t mask = 0xFF << (8 - FRAME_OFFSET_X % 8);
+            if (l1 > l0) {
+                frame[row][FRAME_OFFSET_X / 8] |= mask;
             }
             else {
-                frame[lcd_row][lcd_col] &= ~(1 << lcd_col_offset);
+                frame[row][FRAME_OFFSET_X / 8] &= ~mask;
+            }
+        }
+    }
+    if (std::abs(r1 - r0) >= 10) {
+        for (uint8_t row = 0; row < 64; row ++) {
+            for (uint8_t col = 16 - RIGHT_OFFSET / 8; col < 16; col ++) {
+                frame[row][col] = r1 > r0 ? 0xFF : 0x00;
+            }
+            const uint8_t mask = 0xFF >> (8 - RIGHT_OFFSET % 8);
+            if (r1 > r0) {
+                frame[row][(FRAME_OFFSET_X + FRAME_WIDTH + 1) / 8] |= mask;
+            }
+            else {
+                frame[row][(FRAME_OFFSET_X + FRAME_WIDTH + 1) / 8] &= ~mask;
             }
         }
     }
